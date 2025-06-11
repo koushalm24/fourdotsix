@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class TimelineCircle extends StatelessWidget {
-  const TimelineCircle({super.key});
+  final String data;
+  const TimelineCircle({super.key, required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -16,10 +17,11 @@ class TimelineCircle extends StatelessWidget {
       ),
       child: Center(
         child: Text(
-          "0",
+          data,
           
           style: TextStyle(
-            fontSize: 20
+            fontSize: 18,
+            
           ),
           ),
       ),

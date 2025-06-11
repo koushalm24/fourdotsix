@@ -9,22 +9,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final dir = await getApplicationDocumentsDirectory();
   await Hive.initFlutter(dir.path);
-  runApp( MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   final Future<Box> _openBoxFuture = Hive.openBox('scoreBox');
-   MyApp({super.key});
-    @override
+  MyApp({super.key});
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder(
       future: _openBoxFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            home: Home(),
-          );
+          return MaterialApp(debugShowCheckedModeBanner: false, home: Home());
         } else if (snapshot.hasError) {
           return MaterialApp(
             home: Scaffold(
@@ -33,24 +30,130 @@ class MyApp extends StatelessWidget {
           );
         } else {
           return MaterialApp(
-            home: Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
+            home: Scaffold(body: Center(child: CircularProgressIndicator())),
           );
         }
       },
     );
   }
-
 }
 
-enum EventType { run, dot, wide, noBall }
+class ScoreTimeline extends StatelessWidget {
+
+  final List<ScoreEvent> timeLineHistory;
+
+  const ScoreTimeline({
+    super.key,
+    required this.timeLineHistory,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ...timeLineHistory.map(
+          (event) => TimelineEventItem(
+            event: event,
+            timeLineHistory: timeLineHistory,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class TimelineEventItem extends StatelessWidget {
+  final ScoreEvent event;
+  final List<ScoreEvent> timeLineHistory;
+
+  const TimelineEventItem({
+    super.key,
+    required this.timeLineHistory,
+    required this.event,
+   
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return  Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Row(
+          spacing: 10,
+          children: [
+            
+                const SizedBox(width: 10),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _getEventColor(event.type),
+                shape: BoxShape.circle,
+                
+              ),
+              child: event.type == EventType.dot
+        ? Icon(Icons.park, size: 20, color: Colors.white)
+        : TimelineCircle(
+            data: _getEventDescription(event).toString(),
+          ),
+            ),
+          ],
+        ),
+      
+    );
+  }
+
+  Color _getEventColor(EventType type) {
+    switch (type) {
+      case EventType.six:
+        return Colors.pink;
+      case EventType.four:
+        return Colors.yellow;
+      case EventType.dot:
+        return Colors.green;
+      case EventType.wicket:
+        return Colors.red;
+      case EventType.run:
+        return Colors.white;
+      case EventType.undo:
+        return Colors.blue;
+      default:
+        return Colors.white;
+    }
+  }
+
+  String _getEventDescription(ScoreEvent event) {
+    switch (event.type) {
+      case EventType.run:
+        return '${event.runs}';
+      case EventType.four:
+        return '${event.runs}';
+      case EventType.six:
+        return '${event.runs}';
+      case EventType.dot:
+        return '0';
+      case EventType.wicket:
+        return 'W';
+      case EventType.noBall:
+        return 'NB';
+      case EventType.wide:
+        return 'WD';
+
+      default:
+        return event.type.toString();
+    }
+  }
+}
+
+enum EventType { run,four, six, dot, wide, noBall, wicket, undo, overComplete }
 
 class ScoreEvent {
   final EventType type;
   final int runs;
+  final DateTime timestamp;
 
-  ScoreEvent({required this.type, this.runs = 0});
+  ScoreEvent({required this.type, this.runs = 0, DateTime? timestamp})
+    : timestamp = timestamp ?? DateTime.now();
 }
 
 class Home extends StatefulWidget {
@@ -65,6 +168,7 @@ class _HomeState extends State<Home> {
   int totalBalls = 0;
   int dotBalls = 0;
   List<ScoreEvent> history = [];
+  List<ScoreEvent> timeLinehistory = [];
 
   final scoreBox = Hive.box("scoreBox");
 
@@ -88,14 +192,22 @@ class _HomeState extends State<Home> {
   }
 
   void addEvent(ScoreEvent event) {
+    if (totalBalls % 6 == 0 && totalBalls > 0) {
+        timeLinehistory.clear(); // Reset the timeline
+      }
     setState(() {
       history.add(event);
+      timeLinehistory.add(event);
+      
       switch (event.type) {
         case EventType.run:
+        case EventType.four:
+        case EventType.six:
           totalRuns += event.runs;
           totalBalls++;
           break;
         case EventType.dot:
+        case EventType.wicket:
           dotBalls++;
           totalBalls++;
           break;
@@ -103,27 +215,40 @@ class _HomeState extends State<Home> {
         case EventType.noBall:
           totalRuns++;
           break;
+        case EventType.undo:
+        case EventType.overComplete:
+          break;
       }
+
       saveData();
     });
   }
 
   void undoLast() {
-    if (history.isEmpty) return;
+    if (history.isEmpty ) return;
     final last = history.removeLast();
+    
+    if (timeLinehistory.isNotEmpty ) timeLinehistory.removeLast();
+   
     setState(() {
       switch (last.type) {
         case EventType.run:
+        case EventType.four:
+        case EventType.six:
           totalRuns -= last.runs;
           totalBalls--;
           break;
         case EventType.dot:
+        case EventType.wicket:
           dotBalls--;
           totalBalls--;
           break;
         case EventType.wide:
         case EventType.noBall:
           totalRuns--;
+          break;
+        case EventType.undo:
+        case EventType.overComplete:
           break;
       }
       saveData();
@@ -135,7 +260,7 @@ class _HomeState extends State<Home> {
       context: context,
       builder: (context) => Wrap(
         children: [
-          for (var i in [1, 2, 3, 4, 6])
+          for (var i in [1, 2, 3,])
             ListTile(
               title: Text("$i Run${i > 1 ? 's' : ''}"),
               onTap: () {
@@ -143,6 +268,20 @@ class _HomeState extends State<Home> {
                 addEvent(ScoreEvent(type: EventType.run, runs: i));
               },
             ),
+          ListTile(
+            title: Text("4 Runs"),
+            onTap: () {
+              Navigator.pop(context);
+              addEvent(ScoreEvent(type: EventType.four, runs: 4));
+            },
+          ),
+          ListTile(
+            title: Text("6 Runs"),
+            onTap: () {
+              Navigator.pop(context);
+              addEvent(ScoreEvent(type: EventType.six, runs: 6));
+            },
+          ),
           ListTile(
             title: Text("Wide Ball"),
             onTap: () {
@@ -157,6 +296,13 @@ class _HomeState extends State<Home> {
               addEvent(ScoreEvent(type: EventType.noBall));
             },
           ),
+          ListTile(
+            title: Text("Wicket"),
+            onTap: () {
+              Navigator.pop(context);
+              addEvent(ScoreEvent(type: EventType.wicket));
+            },
+          ),
         ],
       ),
     );
@@ -168,6 +314,7 @@ class _HomeState extends State<Home> {
       totalBalls = 0;
       dotBalls = 0;
       history.clear();
+      timeLinehistory.clear();
       saveData();
     });
   }
@@ -205,7 +352,7 @@ class _HomeState extends State<Home> {
                   Row(
                     spacing: 20,
                     children: [
-                       Text(
+                      Text(
                         "Overs : $overString ",
                         style: TextStyle(fontSize: 30),
                       ),
@@ -220,17 +367,13 @@ class _HomeState extends State<Home> {
                   Text(
                     "Total Dots: $dotBalls (${dotPercentage.toStringAsFixed(1)}%)",
                   ),
-                  
 
                   Row(
                     spacing: 20,
                     children: [
-                      TimelineCircle(),
-                      TimelineCircle(),
-                      TimelineCircle(),
-                      TimelineCircle(),
-                      TimelineCircle(),
-                      TimelineCircle(),
+                      ScoreTimeline(
+                        timeLineHistory: timeLinehistory,
+                      ),
                     ],
                   ),
                 ],
@@ -239,48 +382,44 @@ class _HomeState extends State<Home> {
           ),
         ),
       ),
-       bottomNavigationBar: Padding(
-         padding: const EdgeInsets.all(20.0),
-         child: Row(
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Row(
           spacing: 10,
           children: [
             Expanded(
               child: ElevatedButton(
                 onPressed: undoLast,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan),
+                child: Text(
+                  "UNDO",
+                  style: TextStyle(color: Colors.white, fontSize: 20),
                 ),
-                child: Text("UNDO",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20
-                ),),
               ),
             ),
             Expanded(
               child: ElevatedButton(
                 onPressed: () => addEvent(ScoreEvent(type: EventType.dot)),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                child: Text("DOT",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20
-                ),),
+                child: Text(
+                  "DOT",
+                  style: TextStyle(color: Colors.white, fontSize: 20),
+                ),
               ),
             ),
             Expanded(
               child: ElevatedButton(
                 onPressed: showRunPopup,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                child: Text("RUNS",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20
-                ),),
+                child: Text(
+                  "RUNS",
+                  style: TextStyle(color: Colors.white, fontSize: 20),
+                ),
               ),
             ),
           ],
-               ),
-       ),
+        ),
+      ),
     );
   }
 }
