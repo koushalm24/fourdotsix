@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   hive_flutter: ^1.1.0
   flutter_launcher_icons: ^0.14.4
+  another_flushbar: ^1.12.30
 
 dev_dependencies:
   flutter_test:

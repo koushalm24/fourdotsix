@@ -27,7 +27,7 @@ class ScoreTimeline extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Wrap(
         alignment: WrapAlignment.start,
-        spacing: 25,
+        spacing: 24,
         runSpacing: 10,
         children: timeLineHistory
             .map((event) => TimelineEventItem(event: event))
@@ -50,6 +50,7 @@ class TimelineEventItem extends StatelessWidget {
         radius: 20,
 
         backgroundColor: _getEventColor(event.type),
+        foregroundColor: Colors.white,
 
         child: event.type == EventType.dot
             ? Icon(Icons.park, size: 20, color: Colors.white)
@@ -69,11 +70,11 @@ class TimelineEventItem extends StatelessWidget {
       case EventType.wicket:
         return Colors.red;
       case EventType.run:
-        return Colors.white;
+        return Colors.black;
       case EventType.undo:
         return Colors.blue;
       default:
-        return Colors.white;
+        return Colors.black;
     }
   }
 
@@ -136,6 +137,8 @@ class _HomeState extends State<Home> {
   int totalRuns = 0;
   int totalBalls = 0;
   int dotBalls = 0;
+  int wickets = 0;
+  bool allOut = false;
   List<ScoreEvent> history = [];
   List<ScoreEvent> timeLinehistory = [];
 
@@ -151,6 +154,8 @@ class _HomeState extends State<Home> {
     totalRuns = scoreBox.get('runs', defaultValue: 0);
     totalBalls = scoreBox.get("balls", defaultValue: 0);
     dotBalls = scoreBox.get("dots", defaultValue: 0);
+    wickets = scoreBox.get("wickets", defaultValue: 0);
+    allOut = scoreBox.get("allout", defaultValue: false);
 
     final loaded = scoreBox.get("history", defaultValue: []) as List<dynamic>;
     history = loaded
@@ -172,6 +177,8 @@ class _HomeState extends State<Home> {
     scoreBox.put('runs', totalRuns);
     scoreBox.put('balls', totalBalls);
     scoreBox.put('dots', dotBalls);
+    scoreBox.put('wickets', wickets);
+    scoreBox.put('allout', allOut);
 
     final jsonHistory = history.map((e) => e.toJson()).toList();
     scoreBox.put('history', jsonHistory);
@@ -181,6 +188,9 @@ class _HomeState extends State<Home> {
     if (totalBalls % 6 == 0 && totalBalls > 0) {
       timeLinehistory.clear(); // Reset the timeline
     }
+
+    if (allOut) return;
+
     setState(() {
       history.add(event);
       timeLinehistory.add(event);
@@ -193,9 +203,17 @@ class _HomeState extends State<Home> {
           totalBalls++;
           break;
         case EventType.dot:
-        case EventType.wicket:
           dotBalls++;
           totalBalls++;
+          break;
+        case EventType.wicket:
+          wickets++;
+          dotBalls++;
+          totalBalls++;
+          if (wickets >= 10) {
+            allOut = true;
+          }
+
           break;
         case EventType.wide:
         case EventType.noBall:
@@ -225,9 +243,16 @@ class _HomeState extends State<Home> {
           totalBalls--;
           break;
         case EventType.dot:
-        case EventType.wicket:
           dotBalls--;
           totalBalls--;
+          break;
+        case EventType.wicket:
+          dotBalls--;
+          wickets--;
+          totalBalls--;
+          if (wickets < 10) {
+            allOut = false;
+          }
           break;
         case EventType.wide:
         case EventType.noBall:
@@ -294,11 +319,39 @@ class _HomeState extends State<Home> {
     );
   }
 
+  void _showResetConfirmationDialog(
+    BuildContext context,
+    VoidCallback onConfirm,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Reset Score'),
+        content: Text('Are you sure you want to reset the score?'),
+        actions: [
+         
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close the dialog
+              onConfirm(); // Run the actual reset logic
+            },
+            child: Text('Yes'),
+          ),
+           TextButton(
+            onPressed: () => Navigator.of(context).pop(), // Cancel
+            child: Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void resetData() {
     setState(() {
       totalRuns = 0;
       totalBalls = 0;
       dotBalls = 0;
+      wickets = 0;
       history.clear();
       timeLinehistory.clear();
       saveData();
@@ -317,21 +370,30 @@ class _HomeState extends State<Home> {
       body: SafeArea(
         child: SizedBox(
           child: Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(25.0),
             child: Center(
               child: Column(
                 children: [
-                  TextButton(
-                    onPressed: resetData,
+                  InkWell(
+                    onTap: () {
+                      _showResetConfirmationDialog(context, () {
+                        resetData();
+                      });
+                    },
                     child: const Text(
                       "Reset Score",
-                      style: TextStyle(color: Colors.red, fontSize: 20),
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
                     ),
                   ),
                   Row(
                     children: [
                       Text(
-                        "Score : $totalRuns",
+                        "Score : $totalRuns / $wickets",
                         style: const TextStyle(fontSize: 50),
                       ),
                     ],
@@ -360,6 +422,17 @@ class _HomeState extends State<Home> {
                       child: ScoreTimeline(timeLineHistory: timeLinehistory),
                     ),
                   ),
+
+                  Text(
+                    allOut ? "Team is All Out" : "",
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  Spacer(),
                 ],
               ),
             ),
