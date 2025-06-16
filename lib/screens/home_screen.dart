@@ -1,21 +1,9 @@
+// screens/home_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:fourdotsix/models/score_event.dart';
-import 'package:fourdotsix/widgets/score_timeline.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
-
-  @override
-  State<MainScreen> createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  @override
-  Widget build(BuildContext context) {
-    return const Home();
-  }
-}
+import '../models/score_event.dart';
+import '../widgets/score_timeline.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -53,7 +41,6 @@ class _HomeState extends State<Home> {
         .map((e) => ScoreEvent.fromJson(Map<String, dynamic>.from(e)))
         .toList();
 
-    // Only timeline of current over
     int ballsInCurrentOver = totalBalls % 6;
     timeLinehistory = history.reversed
         .takeWhile((event) => (ballsInCurrentOver--) > 0)
@@ -70,16 +57,11 @@ class _HomeState extends State<Home> {
     scoreBox.put('dots', dotBalls);
     scoreBox.put('wickets', wickets);
     scoreBox.put('allout', allOut);
-
-    final jsonHistory = history.map((e) => e.toJson()).toList();
-    scoreBox.put('history', jsonHistory);
+    scoreBox.put('history', history.map((e) => e.toJson()).toList());
   }
 
   void addEvent(ScoreEvent event) {
-    if (totalBalls % 6 == 0 && totalBalls > 0) {
-      timeLinehistory.clear(); // Reset the timeline
-    }
-
+    if (totalBalls % 6 == 0 && totalBalls > 0) timeLinehistory.clear();
     if (allOut) return;
 
     setState(() {
@@ -98,20 +80,16 @@ class _HomeState extends State<Home> {
           totalBalls++;
           break;
         case EventType.wicket:
-          wickets++;
           dotBalls++;
           totalBalls++;
-          if (wickets >= 10) {
-            allOut = true;
-          }
-
+          wickets++;
+          if (wickets >= 10) allOut = true;
           break;
         case EventType.wide:
         case EventType.noBall:
           totalRuns++;
           break;
-        case EventType.undo:
-        case EventType.overComplete:
+        default:
           break;
       }
 
@@ -122,7 +100,6 @@ class _HomeState extends State<Home> {
   void undoLast() {
     if (history.isEmpty) return;
     final last = history.removeLast();
-
     if (timeLinehistory.isNotEmpty) timeLinehistory.removeLast();
 
     setState(() {
@@ -139,20 +116,30 @@ class _HomeState extends State<Home> {
           break;
         case EventType.wicket:
           dotBalls--;
-          wickets--;
           totalBalls--;
-          if (wickets < 10) {
-            allOut = false;
-          }
+          wickets--;
+          if (wickets < 10) allOut = false;
           break;
         case EventType.wide:
         case EventType.noBall:
           totalRuns--;
           break;
-        case EventType.undo:
-        case EventType.overComplete:
+        default:
           break;
       }
+      saveData();
+    });
+  }
+
+  void resetData() {
+    setState(() {
+      totalRuns = 0;
+      totalBalls = 0;
+      dotBalls = 0;
+      wickets = 0;
+      allOut = false;
+      history.clear();
+      timeLinehistory.clear();
       saveData();
     });
   }
@@ -210,45 +197,6 @@ class _HomeState extends State<Home> {
     );
   }
 
-  void _showResetConfirmationDialog(
-    BuildContext context,
-    VoidCallback onConfirm,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Reset Score'),
-        content: Text('Are you sure you want to reset the score?'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close the dialog
-              onConfirm(); // Run the actual reset logic
-            },
-            child: Text('Yes'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(), // Cancel
-            child: Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void resetData() {
-    setState(() {
-      totalRuns = 0;
-      totalBalls = 0;
-      dotBalls = 0;
-      wickets = 0;
-      allOut = false;
-      history.clear();
-      timeLinehistory.clear();
-      saveData();
-    });
-  }
-
   String get overString => "${totalBalls ~/ 6}.${totalBalls % 6}";
   double get runRate => totalBalls == 0 ? 0 : (totalRuns * 6) / totalBalls;
   double get dotPercentage =>
@@ -259,122 +207,115 @@ class _HomeState extends State<Home> {
     var media = MediaQuery.of(context).size;
     return Scaffold(
       body: SafeArea(
-        child: SizedBox(
-          child: Padding(
-            padding: const EdgeInsets.all(25.0),
-            child: Center(
-              child: Column(
+        child: Padding(
+          padding: const EdgeInsets.all(25.0),
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text('Reset Score'),
+                      content:
+                          Text('Are you sure you want to reset the score?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            resetData();
+                          },
+                          child: Text('Yes'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text('Cancel'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: const Text(
+                  "Reset Score",
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              Row(
                 children: [
-                  InkWell(
-                    onTap: () {
-                      _showResetConfirmationDialog(context, () {
-                        resetData();
-                      });
-                    },
-                    child: const Text(
-                      "Reset Score",
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        "Score : $totalRuns / $wickets",
-                        style: const TextStyle(fontSize: 50),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    spacing: 20,
-                    children: [
-                      Text(
-                        "Overs : $overString ",
-                        style: TextStyle(fontSize: 30),
-                      ),
-                      Text(
-                        "RR : ${runRate.toStringAsFixed(2)}",
-                        style: const TextStyle(fontSize: 30),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
                   Text(
-                    "Total Dots: $dotBalls (${dotPercentage.toStringAsFixed(1)}%)",
+                    "Score : $totalRuns / $wickets",
+                    style: const TextStyle(fontSize: 50),
                   ),
-
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: ScoreTimeline(timeLineHistory: timeLinehistory),
-                    ),
-                  ),
-
-                  Text(
-                    allOut ? "Team is All Out" : "",
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  Spacer(),
                 ],
               ),
-            ),
+              Row(
+                children: [
+                  Text("Overs : $overString ", style: TextStyle(fontSize: 30)),
+                  Text("RR : ${runRate.toStringAsFixed(2)}",
+                      style: const TextStyle(fontSize: 30)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Text(
+                "Total Dots: $dotBalls (${dotPercentage.toStringAsFixed(1)}%)",
+              ),
+              const SizedBox(height: 20),
+              ScoreTimeline(timeLineHistory: timeLinehistory),
+              const Spacer(),
+              if (allOut)
+                Text(
+                  "Team is All Out",
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
           ),
         ),
       ),
       bottomNavigationBar: Padding(
         padding: EdgeInsets.all(25.0),
         child: Row(
-          spacing: 10,
           children: [
             SizedBox(
               width: media.width * 0.27,
               child: ElevatedButton(
                 onPressed: undoLast,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan),
-                child: Text(
-                  "UNDO",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: media.width * 0.05,
-                  ),
-                ),
+                child: Text("UNDO",
+                    style: TextStyle(
+                        color: Colors.white, fontSize: media.width * 0.05)),
               ),
             ),
+            SizedBox(width: 10),
             SizedBox(
               width: media.width * 0.27,
               child: ElevatedButton(
                 onPressed: () => addEvent(ScoreEvent(type: EventType.dot)),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                child: Text(
-                  "DOT",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: media.width * 0.05,
-                  ),
-                ),
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+                child: Text("DOT",
+                    style: TextStyle(
+                        color: Colors.white, fontSize: media.width * 0.05)),
               ),
             ),
+            SizedBox(width: 10),
             SizedBox(
               width: media.width * 0.27,
               child: ElevatedButton(
                 onPressed: showRunPopup,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                child: Text(
-                  "RUNS",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: media.width * 0.05,
-                  ),
-                ),
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: Text("RUNS",
+                    style: TextStyle(
+                        color: Colors.white, fontSize: media.width * 0.05)),
               ),
             ),
           ],
