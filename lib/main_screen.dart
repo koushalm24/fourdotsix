@@ -352,6 +352,7 @@ class _HomeState extends State<Home> {
       totalBalls = 0;
       dotBalls = 0;
       wickets = 0;
+      allOut = false;
       history.clear();
       timeLinehistory.clear();
       saveData();
